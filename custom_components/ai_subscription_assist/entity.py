@@ -74,7 +74,6 @@ from anthropic.types import (
 )
 from anthropic.types.message_create_params import MessageCreateParamsStreaming
 import voluptuous as vol
-from voluptuous_openapi import UNSUPPORTED, convert
 
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentry
@@ -122,16 +121,16 @@ from .provider_errors import (
     format_http_error_message,
     format_rate_limited_message,
 )
+from .schema_compat import UNSUPPORTED, convert
 
 # Max number of back and forth with the LLM to generate a response
 MAX_TOOL_ITERATIONS = 10
 
 def _sanitize_unsupported(value: Any) -> Any:
-    """Replace voluptuous_openapi UNSUPPORTED markers with a permissive schema.
+    """Replace UNSUPPORTED markers with a permissive schema.
 
-    Home Assistant 2026.9 switched from voluptuous to probatio internally;
-    voluptuous_openapi does not recognize probatio's validator objects and
-    returns its UNSUPPORTED sentinel, which is not JSON serializable.
+    Schema converters (probatio / voluptuous_openapi) return an UNSUPPORTED
+    sentinel for validators they cannot express, which is not JSON serializable.
     """
     if value is UNSUPPORTED or type(value).__name__ == "_Unsupported":
         return {"type": "object"}
