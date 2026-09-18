@@ -119,6 +119,18 @@ class _FastEmbedder:
             return self._embedder
 
 
+# Owner key for turns that arrive without an HA user (automations, scripts,
+# webhooks calling conversation.process). Without it those transcripts would
+# never be stored and never show up in the memory panel.
+AUTOMATION_OWNER_ID = "automation"
+
+
+def _owner_user_id(user_input: conversation.ConversationInput) -> str:
+    """Return the user id that owns this turn's memory and resume context."""
+    user_id = user_input.context.user_id if user_input.context else None
+    return user_id or AUTOMATION_OWNER_ID
+
+
 class AiSubscriptionAssistMemoryService:
     """Memory manager scoped to a single config entry."""
 
@@ -624,9 +636,7 @@ class AiSubscriptionAssistMemoryService:
         if is_slash_command(user_input.text):
             return
 
-        user_id = user_input.context.user_id if user_input.context else None
-        if not user_id:
-            return
+        user_id = _owner_user_id(user_input)
 
         captured = extract_heuristic_memory(user_input.text)
         if not captured:
@@ -649,7 +659,7 @@ class AiSubscriptionAssistMemoryService:
         if not query or query.startswith("/"):
             return None
 
-        user_id = user_input.context.user_id if user_input.context else None
+        user_id = _owner_user_id(user_input)
         top_k = int(self._option(CONF_MEMORY_RECALL_TOP_K))
 
         async with self._lock:
@@ -695,9 +705,7 @@ class AiSubscriptionAssistMemoryService:
         if len(chat_log.content) > 2:
             return
 
-        user_id = user_input.context.user_id if user_input.context else None
-        if not user_id:
-            return
+        user_id = _owner_user_id(user_input)
 
         async with self._lock:
             doc = self._entry_doc()
@@ -735,9 +743,7 @@ class AiSubscriptionAssistMemoryService:
             return
         if not assistant_text or is_slash_command(user_input.text):
             return
-        user_id = user_input.context.user_id if user_input.context else None
-        if not user_id:
-            return
+        user_id = _owner_user_id(user_input)
 
         now_iso = utcnow_iso()
         max_messages = int(self._option(CONF_MEMORY_RESUME_MAX_MESSAGES))
@@ -757,9 +763,7 @@ class AiSubscriptionAssistMemoryService:
         subentry_id: str,
     ) -> bool:
         """Clear resumable transcript context for user + agent."""
-        user_id = user_input.context.user_id if user_input.context else None
-        if not user_id:
-            return False
+        user_id = _owner_user_id(user_input)
         async with self._lock:
             doc = self._entry_doc()
             by_subentry = doc.setdefault("resume", {}).get(subentry_id)
