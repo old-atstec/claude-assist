@@ -86,7 +86,7 @@ class SetModelTool(AiSubscriptionAssistTool):
     description = (
         "Change the model used for this conversation agent. "
         "Model IDs are provider-specific; you can provide any valid model string. "
-        "Examples: claude-sonnet-4-5-20250514, gpt-4o-mini, gpt-5.2-codex, gemini-2.5-pro. "
+        "Examples: claude-sonnet-5, claude-haiku-4-5, gpt-4o-mini, gpt-5.2-codex, gemini-2.5-pro. "
         "Call this when the user asks to switch models or wants a smarter/faster response."
     )
 

@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator, Callable, Iterable
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+import re
 import time
 
 try:
@@ -139,6 +140,20 @@ def _sanitize_unsupported(value: Any) -> Any:
     if isinstance(value, list):
         return [_sanitize_unsupported(v) for v in value]
     return value
+
+_BOGUS_MODEL_SUFFIX = re.compile(r"^(claude-[a-z]+-(?:[5-9]|\d{2,}))-0$")
+
+
+def _normalize_claude_model(model: str) -> str:
+    """Repair model ids saved by an older model-list heuristic.
+
+    Earlier versions appended "-0" to short ids such as claude-sonnet-5,
+    producing claude-sonnet-5-0, which Anthropic rejects with 404.
+    """
+    if match := _BOGUS_MODEL_SUFFIX.match(model):
+        return match.group(1)
+    return model
+
 
 def _format_tool(
     tool: llm.Tool, custom_serializer: Callable[[Any], Any] | None
@@ -1506,7 +1521,9 @@ class AiSubscriptionAssistBaseLLMEntity(Entity):
 
         messages = _convert_content(chat_log.content[1:])
 
-        model = options.get(CONF_CHAT_MODEL, DEFAULT[CONF_CHAT_MODEL])
+        model = _normalize_claude_model(
+            options.get(CONF_CHAT_MODEL, DEFAULT[CONF_CHAT_MODEL])
+        )
 
         model_args = MessageCreateParamsStreaming(
             model=model,

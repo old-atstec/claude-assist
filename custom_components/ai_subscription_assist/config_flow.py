@@ -394,15 +394,13 @@ async def get_model_list(client: anthropic.AsyncAnthropic) -> list[SelectOptionD
         models = []
     _LOGGER.debug("Available models: %s", models)
     model_options: list[SelectOptionDict] = []
-    short_form = re.compile(r"[^\d]-\d$")
+    first_number = re.compile(r"-(\d+)")
 
     def _major_version(model_id: str) -> int:
-        # Common ids: claude-3-5-sonnet-..., claude-haiku-4-5, claude-opus-4-5-20250514
-        if "-4" in model_id:
-            return 4
-        if "-3" in model_id:
-            return 3
-        return 0
+        # Common ids: claude-3-5-sonnet-..., claude-haiku-4-5, claude-sonnet-5,
+        # claude-opus-4-5-20250514. The first number is the major version.
+        match = first_number.search(model_id)
+        return int(match.group(1)) if match else 0
 
     for model_info in models:
         # Resolve alias from versioned model name
@@ -417,7 +415,9 @@ async def get_model_list(client: anthropic.AsyncAnthropic) -> list[SelectOptionD
             and model_info.id[-2:-1] != "-"
             else model_info.id
         )
-        if short_form.search(model_alias):
+        # Only the 4.0 generation has "-0" aliases (claude-sonnet-4-0); newer
+        # short ids such as claude-sonnet-5 / claude-opus-5 are already aliases.
+        if model_alias.endswith("-4"):
             model_alias += "-0"
         if model_alias.endswith(("haiku", "opus", "sonnet")):
             model_alias += "-latest"
@@ -1535,13 +1535,13 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
             pass
         # Fallback to static list if API call fails
         return [
+            SelectOptionDict(label="Claude Opus 5", value="claude-opus-5"),
+            SelectOptionDict(label="Claude Sonnet 5", value="claude-sonnet-5"),
             SelectOptionDict(label="Claude Haiku 4.5", value="claude-haiku-4-5"),
-            SelectOptionDict(label="Claude Sonnet 4.5", value="claude-sonnet-4-5-20250514"),
-            SelectOptionDict(label="Claude Sonnet 4", value="claude-sonnet-4-20250514"),
-            SelectOptionDict(label="Claude Opus 4.5", value="claude-opus-4-5-20250514"),
-            SelectOptionDict(label="Legacy · Claude Haiku 3.5", value="claude-3-5-haiku-20241022"),
-            SelectOptionDict(label="Legacy · Claude Haiku 3", value="claude-3-haiku-20240307"),
-            SelectOptionDict(label="Legacy · Claude Opus 3", value="claude-3-opus-20240229"),
+            SelectOptionDict(label="Claude Opus 4.6", value="claude-opus-4-6"),
+            SelectOptionDict(label="Claude Sonnet 4.6", value="claude-sonnet-4-6"),
+            SelectOptionDict(label="Claude Sonnet 4.5", value="claude-sonnet-4-5"),
+            SelectOptionDict(label="Claude Opus 4.5", value="claude-opus-4-5"),
         ]
 
     async def _get_location_data(self) -> dict[str, str]:
