@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 from collections.abc import AsyncGenerator, Callable, Iterable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 import json
 from pathlib import Path
 import re
@@ -153,6 +154,24 @@ def _normalize_claude_model(model: str) -> str:
     if match := _BOGUS_MODEL_SUFFIX.match(model):
         return match.group(1)
     return model
+
+
+def _describe_unified_rate_limit(headers: Any) -> str | None:
+    """Explain a subscription (OAuth) rate limit from the unified headers."""
+    status = headers.get("anthropic-ratelimit-unified-status")
+    claim = headers.get("anthropic-ratelimit-unified-representative-claim")
+    if not status and not claim:
+        return None
+    parts = []
+    if claim:
+        parts.append(f"subscription quota '{claim}' exhausted")
+    elif status:
+        parts.append(f"subscription status '{status}'")
+    reset = headers.get("anthropic-ratelimit-unified-reset")
+    if reset and reset.isdigit():
+        reset_dt = datetime.fromtimestamp(int(reset), tz=UTC)
+        parts.append(f"resets at {reset_dt:%Y-%m-%d %H:%M} UTC")
+    return ", ".join(parts)
 
 
 def _format_tool(
@@ -1665,6 +1684,30 @@ class AiSubscriptionAssistBaseLLMEntity(Entity):
                         ]
                     )
                 )
+            except anthropic.RateLimitError as err:
+                # Subscription (OAuth) tokens report which quota tripped in the
+                # anthropic-ratelimit-unified-* headers; the JSON body is just "Error".
+                headers = err.response.headers
+                limit_info = {
+                    k: v
+                    for k, v in headers.items()
+                    if k.lower().startswith("anthropic-ratelimit")
+                    or k.lower() in ("retry-after", "request-id")
+                }
+                LOGGER.warning(
+                    "Anthropic rate limited model %s: %s (headers: %s)",
+                    model,
+                    err.message,
+                    limit_info,
+                )
+                raise HomeAssistantError(
+                    format_rate_limited_message(
+                        "Anthropic",
+                        retry_after=headers.get("retry-after")
+                        or headers.get("anthropic-ratelimit-unified-reset"),
+                        detail=_describe_unified_rate_limit(headers) or err.message,
+                    )
+                ) from err
             except anthropic.AnthropicError as err:
                 raise HomeAssistantError(
                     f"Sorry, I had a problem talking to Anthropic: {err}"
