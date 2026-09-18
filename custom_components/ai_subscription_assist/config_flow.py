@@ -47,9 +47,12 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.helpers.typing import VolDictType
 
+from .claude_client import create_claude_code_client_for_entry
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CHAT_MODEL,
+    CONF_CLAUDE_ACCOUNT_UUID,
+    CONF_CLAUDE_TOOL_OBFUSCATION,
     CONF_ENABLED_TOOLS,
     CONF_EXPIRES_AT,
     CONF_GOOGLE_PROJECT_ID,
@@ -98,7 +101,6 @@ from .const import (
     NON_ADAPTIVE_THINKING_MODELS,
     NON_THINKING_MODELS,
     OAUTH_AUTHORIZE_URL,
-    OAUTH_BETA_FLAGS,
     OAUTH_CLIENT_ID,
     OAUTH_REDIRECT_URI,
     OAUTH_SCOPES,
@@ -561,14 +563,19 @@ class AiSubscriptionAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                         access_token[:20] if access_token else "none",
                     )
 
+                    entry_data = {
+                        CONF_PROVIDER: PROVIDER_CLAUDE_OAUTH,
+                        CONF_ACCESS_TOKEN: access_token,
+                        CONF_REFRESH_TOKEN: refresh_token,
+                        CONF_EXPIRES_AT: expires_at,
+                    }
+                    account = token_data.get("account")
+                    if isinstance(account, dict) and isinstance(account.get("uuid"), str) and account["uuid"]:
+                        entry_data[CONF_CLAUDE_ACCOUNT_UUID] = account["uuid"]
+
                     return self.async_create_entry(
                         title=entry_title,
-                        data={
-                            CONF_PROVIDER: PROVIDER_CLAUDE_OAUTH,
-                            CONF_ACCESS_TOKEN: access_token,
-                            CONF_REFRESH_TOKEN: refresh_token,
-                            CONF_EXPIRES_AT: expires_at,
-                        },
+                        data=entry_data,
                         subentries=[
                             {
                                 "subentry_type": "conversation",
@@ -1018,6 +1025,10 @@ class AiSubscriptionAssistOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Manage service-level memory settings."""
+        is_claude_oauth = (
+            self._config_entry.data.get(CONF_PROVIDER, PROVIDER_CLAUDE_OAUTH)
+            == PROVIDER_CLAUDE_OAUTH
+        )
         if user_input is not None:
             normalized = {
                 CONF_MEMORY_ENABLED: bool(
@@ -1069,13 +1080,27 @@ class AiSubscriptionAssistOptionsFlow(OptionsFlow):
                     )
                 ),
             }
+            if is_claude_oauth:
+                normalized[CONF_CLAUDE_TOOL_OBFUSCATION] = bool(
+                    user_input.get(CONF_CLAUDE_TOOL_OBFUSCATION, False)
+                )
             return self.async_create_entry(title="", data=normalized)
 
         current = {
             key: self._config_entry.options.get(key, default)
             for key, default in MEMORY_DEFAULTS.items()
         }
-        schema: VolDictType = {
+        schema: VolDictType = {}
+        if is_claude_oauth:
+            schema[
+                vol.Optional(
+                    CONF_CLAUDE_TOOL_OBFUSCATION,
+                    default=bool(
+                        self._config_entry.options.get(CONF_CLAUDE_TOOL_OBFUSCATION, False)
+                    ),
+                )
+            ] = bool
+        schema |= {
             vol.Optional(
                 CONF_MEMORY_ENABLED,
                 default=current[CONF_MEMORY_ENABLED],
@@ -1519,16 +1544,13 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
             ]
 
         try:
-            client = anthropic.AsyncAnthropic(
-                auth_token=entry.data[CONF_ACCESS_TOKEN],
-                http_client=get_async_client(self.hass),
-                default_headers={
-                    "anthropic-beta": OAUTH_BETA_FLAGS,
-                    "user-agent": "claude-cli/2.1.2 (external, cli)",
-                    "x-app": "cli",
-                },
+            client = create_claude_code_client_for_entry(
+                self.hass, entry, entry.data[CONF_ACCESS_TOKEN]
             )
-            models = await get_model_list(client)
+            try:
+                models = await get_model_list(client)
+            finally:
+                await client.close()
             if models:
                 return models
         except Exception:
@@ -1557,14 +1579,8 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
         zone_home = self.hass.states.get(ENTITY_ID_HOME)
         if zone_home is not None:
             entry = self._get_entry()
-            client = anthropic.AsyncAnthropic(
-                auth_token=entry.data[CONF_ACCESS_TOKEN],
-                http_client=get_async_client(self.hass),
-                default_headers={
-                    "anthropic-beta": OAUTH_BETA_FLAGS,
-                    "user-agent": "claude-cli/2.1.2 (external, cli)",
-                    "x-app": "cli",
-                },
+            client = create_claude_code_client_for_entry(
+                self.hass, entry, entry.data[CONF_ACCESS_TOKEN]
             )
             location_schema = vol.Schema(
                 {
@@ -1578,24 +1594,27 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
                     ): str,
                 }
             )
-            response = await client.messages.create(
-                model=cast(str, DEFAULT[CONF_CHAT_MODEL]),
-                messages=[
-                    {
-                        "role": "user",
-                        "content": "Where are the following coordinates located: "
-                        f"({zone_home.attributes[ATTR_LATITUDE]},"
-                        f" {zone_home.attributes[ATTR_LONGITUDE]})? Please respond "
-                        "only with a JSON object using the following schema:\n"
-                        f"{convert(location_schema)}",
-                    },
-                    {
-                        "role": "assistant",
-                        "content": "{",  # hints the model to skip any preamble
-                    },
-                ],
-                max_tokens=cast(int, DEFAULT[CONF_MAX_TOKENS]),
-            )
+            try:
+                response = await client.messages.create(
+                    model=cast(str, DEFAULT[CONF_CHAT_MODEL]),
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": "Where are the following coordinates located: "
+                            f"({zone_home.attributes[ATTR_LATITUDE]},"
+                            f" {zone_home.attributes[ATTR_LONGITUDE]})? Please respond "
+                            "only with a JSON object using the following schema:\n"
+                            f"{convert(location_schema)}",
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "{",  # hints the model to skip any preamble
+                        },
+                    ],
+                    max_tokens=cast(int, DEFAULT[CONF_MAX_TOKENS]),
+                )
+            finally:
+                await client.close()
             _LOGGER.debug("Model response: %s", response.content)
             location_data = location_schema(
                 json.loads(

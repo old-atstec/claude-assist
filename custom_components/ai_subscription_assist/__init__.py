@@ -20,8 +20,10 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.typing import ConfigType
 
+from .claude_client import create_claude_code_client_for_entry
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_CLAUDE_ACCOUNT_UUID,
     CONF_EXPIRES_AT,
     CONF_GOOGLE_PROJECT_ID,
     CONF_OPENAI_API_KEY,
@@ -37,7 +39,6 @@ from .const import (
     GOOGLE_GEMINI_CLI_OAUTH_CLIENT_SECRET,
     GOOGLE_GEMINI_CLI_OAUTH_TOKEN_URL,
     LOGGER,
-    OAUTH_BETA_FLAGS,
     OAUTH_CLIENT_ID,
     OAUTH_TOKEN_URL,
     OPENAI_CODEX_OAUTH_CLIENT_ID,
@@ -185,12 +186,24 @@ async def _async_refresh_token(hass: HomeAssistant, entry: ConfigEntry) -> str |
         new_data[CONF_REFRESH_TOKEN] = token_data["refresh_token"]
     expires_in = token_data.get("expires_in", 28800)
     new_data[CONF_EXPIRES_AT] = time.time() + expires_in
+    if account_uuid := extract_claude_account_uuid(token_data):
+        new_data[CONF_CLAUDE_ACCOUNT_UUID] = account_uuid
 
     hass.config_entries.async_update_entry(entry, data=new_data)
     LOGGER.debug(
         "Successfully refreshed OAuth token, expires in %s seconds", expires_in
     )
     return token_data["access_token"]
+
+
+def extract_claude_account_uuid(token_data: dict[str, object]) -> str | None:
+    """Return the account uuid the Anthropic OAuth token endpoint reports, if any."""
+    account = token_data.get("account")
+    if isinstance(account, dict):
+        account_uuid = account.get("uuid")
+        if isinstance(account_uuid, str) and account_uuid:
+            return account_uuid
+    return None
 
 
 def _decode_jwt_payload(token: str) -> dict[str, object] | None:
@@ -343,22 +356,15 @@ async def _async_refresh_gemini_cli_token(
     return access_token
 
 
-def _create_client(hass: HomeAssistant, access_token: str) -> anthropic.AsyncClient:
-    """Create an Anthropic async client using OAuth access token.
+def _create_client(hass: HomeAssistant, entry: ConfigEntry, access_token: str) -> anthropic.AsyncClient:
+    """Create an Anthropic async client using the OAuth access token.
 
-    Mimics Claude Code's headers exactly — OAuth tokens require specific
-    beta flags and headers to be accepted by the Anthropic API.
+    OAuth tokens are only accepted from Claude Code, so the client's traffic is
+    reshaped to the native CLI fingerprint (see claude_code_mimicry).
     """
-    return anthropic.AsyncAnthropic(
-        api_key=None,
-        auth_token=access_token,
-        http_client=get_async_client(hass),
-        default_headers={
-            "anthropic-beta": OAUTH_BETA_FLAGS,
-            "user-agent": "claude-cli/2.1.2 (external, cli)",
-            "x-app": "cli",
-        },
-    )
+    client = create_claude_code_client_for_entry(hass, entry, access_token)
+    entry.async_on_unload(client.close)
+    return client
 
 
 async def _async_validate_oauth_client(client: anthropic.AsyncClient) -> None:
@@ -496,7 +502,7 @@ async def async_setup_entry(
             if not access_token:
                 raise ConfigEntryNotReady("Failed to refresh OAuth token")
 
-        client = _create_client(hass, access_token)
+        client = _create_client(hass, entry, access_token)
 
         # Validate the token works
         try:
@@ -507,7 +513,7 @@ async def async_setup_entry(
             access_token = await _async_refresh_token(hass, entry)
             if not access_token:
                 return False
-            client = _create_client(hass, access_token)
+            client.auth_token = access_token
             try:
                 await _async_validate_oauth_client(client)
             except anthropic.AuthenticationError as err2:
@@ -554,7 +560,8 @@ async def async_setup_entry(
             """Periodically refresh the OAuth token."""
             new_token = await _async_refresh_token(hass, entry)
             if new_token:
-                entry.runtime_data = _create_client(hass, new_token)
+                # Keep the client (and its Claude Code session id): only the bearer changes.
+                entry.runtime_data.auth_token = new_token
 
         entry.async_on_unload(
             async_track_time_interval(

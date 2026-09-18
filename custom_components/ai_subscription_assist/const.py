@@ -22,12 +22,14 @@ OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 OAUTH_SCOPES = "org:create_api_key user:profile user:inference"
 OAUTH_REDIRECT_URI = "https://console.anthropic.com/oauth/code/callback"
 
-# Beta headers required for OAuth Bearer token auth
-OAUTH_BETA_FLAGS = "claude-code-20250219,oauth-2025-04-20"
-
 CONF_ACCESS_TOKEN = "access_token"
 CONF_REFRESH_TOKEN = "refresh_token"
 CONF_EXPIRES_AT = "expires_at"
+# Claude account uuid from the OAuth token response; embedded in metadata.user_id.
+CONF_CLAUDE_ACCOUNT_UUID = "claude_account_uuid"
+# Entry option: alias tool names like cc-mimicry does (off by default: aliases
+# hide the meaning of HA tool names from the model).
+CONF_CLAUDE_TOOL_OBFUSCATION = "claude_tool_obfuscation"
 
 # OpenAI (and OpenAI-compatible) configuration
 CONF_OPENAI_API_KEY = "openai_api_key"

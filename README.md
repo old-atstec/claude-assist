@@ -284,10 +284,34 @@ Notes:
 
 ## Development notes (auth details)
 
-This integration works by mimicking Claude Code’s OAuth + request headers.
+This integration works by mimicking Claude Code’s OAuth flow and, after login, its exact request shape.
 
 - Token endpoint: `https://console.anthropic.com/v1/oauth/token`
-- Requires beta/header matching (e.g. `anthropic-beta: claude-code-20250219,oauth-2025-04-20`, `x-app: cli`, `user-agent: claude-cli/...`)
+- Every request to `api.anthropic.com` goes through an httpx transport
+  (`claude_code_mimicry.py`) that rebuilds it the way Claude Code CLI sends it.
+  The transforms are ported from
+  [CLIProxyAPI](https://github.com/Arkptz/CLIProxyAPI) (claude executor) and
+  [cc-mimicry](https://github.com/Arkptz/cc-mimicry):
+  - Headers: `user-agent: claude-cli/<ver> (external, cli)`, `x-app: cli`,
+    Node/JS `x-stainless-*` profile, `x-claude-code-session-id`,
+    `x-client-request-id`, and the per-request `anthropic-beta` list
+    (`claude-code-20250219,oauth-2025-04-20,interleaved-thinking-…`).
+    The Python SDK’s own fingerprint headers are dropped.
+  - Body: `system[0]` is the billing attribution block
+    (`x-anthropic-billing-header: cc_version=…; cc_entrypoint=cli; cch=…;`),
+    `system[1]` is the Claude Code identity line. The Home Assistant prompt is
+    relocated into the conversation — as a `role: system` turn on models that
+    accept it, as a `<system-reminder>` in the first user message on legacy
+    models (e.g. `claude-haiku-4-5`). The first user message also carries
+    Claude Code’s `currentDate` reminder; `metadata.user_id` is the CLI’s
+    `{device_id, account_uuid, session_id}` JSON; cache breakpoints get the
+    OAuth `1h` ttl.
+  - Signing: `cch` is xxHash64 of the normalized final body, so it is computed
+    on the exact bytes that go on the wire.
+  - Optional (provider entry options → “Alias tool names”): rename tool names
+    to generic Claude-Code-like aliases and restore them in the response
+    stream, as cc-mimicry does. Off by default because aliases hide the
+    meaning of Home Assistant tool names from the model.
 
 ---
 
