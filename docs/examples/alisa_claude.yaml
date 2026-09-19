@@ -43,6 +43,8 @@ yandex_dialogs:
                 "text": text,
                 "command": req.get("command"),
                 "application_id": (session.get("application") or {}).get("application_id"),
+                # модель устройства, напр. "ru.yandex.quasar.app/1.0 (Yandex Station; android 6.0.1)"
+                "client_id": (event.get("meta") or {}).get("client_id"),
                 "user_id": (session.get("user") or {}).get("user_id"),
                 "session_id": session.get("session_id"),
             },

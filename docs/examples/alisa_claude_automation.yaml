@@ -15,22 +15,37 @@
       "Claude Haiku 4.5": conversation.claude_conversation
     agent_id: >-
       {{ agents.get(states('input_select.alisa_claude_agent'), 'conversation.claude_conversation_2') }}
-    # application_id навыка → колонка. application_id виден в логе HA
-    # (system_log, «alisa: application_id=…») после первого обращения с каждой колонки.
+    # application_id навыка → колонка. application_id меняется при пересоздании
+    # навыка (уникален для пары устройство+навык), поэтому ниже есть ещё привязка
+    # по модели устройства из client_id. Оба id видны в логе HA («alisa: …»).
     speakers:
-      # Яндекс Мини
-      "040E24066EB98B83C9B96B5FD3B970A1662D9F0B215E8279D5199A51744339D8": media_player.yandex_station_ff98f029c1fe1ab9856023b1
-      # Яндекс Станция Макс
-      "7E862B8ACA15D8AB832F9B63033802FE648114473BC5515CD92093A7EF1AEFF3": media_player.yandex_station_xw0000000000000011600002d22c5a80
+      # Станция Макс (client_id "… (Yandex Station_2; android 9)")
+      "94423906A3A2342610B7CBB2C963383354439DD3659D38050172DD912B8FAB96": media_player.yandex_station_xw0000000000000011600002d22c5a80
+      # Станция Мини
+      "7FDC05BAA53695EF4C984EB9DB5775CDA5E7DBFA066B3F2E037A5D8A279540C5": media_player.yandex_station_ff98f029c1fe1ab9856023b1
+    # Подстрока платформы из client_id (в нижнем регистре) → колонка.
+    # station_2 = Станция Макс, mini = Станция Мини. Работает, пока модели не повторяются.
+    speakers_by_model:
+      "station_2": media_player.yandex_station_xw0000000000000011600002d22c5a80
+      "mini": media_player.yandex_station_ff98f029c1fe1ab9856023b1
     default_speaker: media_player.yandex_station_xw0000000000000011600002d22c5a80
-    # Колонка, которая сейчас не в IDLE — с неё, скорее всего, и спросили
+    client_id: "{{ (trigger.event.data.client_id or '') | lower }}"
+    by_model: >-
+      {% set ns = namespace(v='') %}
+      {% for key, ent in speakers_by_model.items() if key in client_id %}{% set ns.v = ent %}{% endfor %}
+      {{ ns.v }}
+    # Запасной вариант: в момент запроса спрашивающая колонка в BUSY/LISTENING,
+    # а та, что договаривает прошлый ответ, — в SPEAKING, поэтому её берём последней.
     active_speaker: >-
-      {{ states.media_player
-         | selectattr('attributes.alice_state', 'defined')
-         | rejectattr('attributes.alice_state', 'eq', 'IDLE')
-         | map(attribute='entity_id') | list | first | default('') }}
+      {% set ns = namespace(v='') %}
+      {% for st in ['BUSY', 'LISTENING', 'SPEAKING'] if not ns.v %}
+        {% set ns.v = states.media_player
+           | selectattr('attributes.alice_state', 'eq', st)
+           | map(attribute='entity_id') | list | first | default('') %}
+      {% endfor %}
+      {{ ns.v }}
     speaker: >-
-      {{ speakers.get(trigger.event.data.application_id) or active_speaker or default_speaker }}
+      {{ speakers.get(trigger.event.data.application_id) or by_model or active_speaker or default_speaker }}
     # Подсказка агенту: ответ пойдёт в голос, markdown и простыни не нужны
     prompt_prefix: >-
       Ответ будет озвучен голосовым ассистентом: отвечай кратко, обычным текстом без markdown.
@@ -41,7 +56,7 @@
         logger: alisa_claude
         message: >-
           alisa: application_id={{ trigger.event.data.application_id }}
-          speaker={{ speaker }} agent={{ agent_id }} text={{ trigger.event.data.text }}
+          client_id={{ client_id }} speaker={{ speaker }} agent={{ agent_id }} text={{ trigger.event.data.text }}
     - action: conversation.process
       continue_on_error: true
       data:
