@@ -1,0 +1,306 @@
+{
+  "config": {
+    "error": {
+      "authentication_error": "Ошибка аутентификации. Пройдите авторизацию заново.",
+      "cannot_connect": "Не удалось подключиться к провайдеру.",
+      "timeout_connect": "Истекло время ожидания подключения к провайдеру.",
+      "unknown": "Произошла непредвиденная ошибка.",
+      "no_auth_code": "Введите код авторизации из URL обратного вызова.",
+      "invalid_state": "Несовпадение OAuth state. Начните заново и повторите попытку.",
+      "flow_expired": "Сессия настройки истекла. Начните заново и повторите попытку.",
+      "google_project_required": "Для этого аккаунта Google требуется ID проекта Cloud. Укажите проект и авторизуйтесь заново.",
+      "token_exchange_failed": "Не удалось обменять код авторизации на токены. Возможно, код истёк — попробуйте ещё раз."
+    },
+    "step": {
+      "user": {
+        "title": "Выбор провайдера",
+        "description": "Выберите, какой бэкенд будет использовать эта конфигурация AI Subscription Assist.",
+        "menu_options": {
+          "claude_oauth": "Claude Pro/Max",
+          "openai_codex": "ChatGPT Plus/Pro/Business/Enterprise (Codex)",
+          "gemini_cli": "Google AI Pro (Gemini)",
+          "openai": "OpenAI / совместимый (API-ключ)"
+        },
+        "data": {
+          "provider": "Провайдер"
+        }
+      },
+      "claude_oauth": {
+        "title": "Авторизация через Claude Pro / Claude Max",
+        "description": "Войдите в аккаунт Claude **Pro** или **Max** (либо подходящее место **Team/Enterprise**), чтобы авторизовать Home Assistant.\n\n1. [Нажмите здесь для авторизации]({auth_url})\n2. Войдите и разрешите доступ приложению\n3. После авторизации откроется страница с кодом авторизации\n4. Скопируйте и вставьте код ниже\n\n**Redirect URI:** `{redirect_uri}`",
+        "data": {
+          "name": "Название",
+          "auth_code": "Код авторизации"
+        }
+      },
+      "openai": {
+        "title": "Настройка OpenAI / совместимого сервера",
+        "description": "Введите API-ключ OpenAI (или OpenAI-совместимого сервера) и при необходимости укажите другой базовый URL.",
+        "data": {
+          "name": "Название",
+          "openai_api_key": "API-ключ",
+          "openai_base_url": "Базовый URL"
+        }
+      },
+      "openai_codex": {
+        "title": "Авторизация через ChatGPT Plus / Pro для Codex",
+        "description": "Войдите в аккаунт **ChatGPT Plus**, **ChatGPT Pro**, **ChatGPT Business** или **ChatGPT Enterprise**, чтобы авторизовать Home Assistant для Codex.\n\n1. [Нажмите здесь для авторизации]({auth_url})\n2. Войдите и разрешите доступ\n3. Вас перенаправит на localhost-адрес, который может не открыться\n4. Скопируйте и вставьте полный URL перенаправления (или только значение `code=`)\n\n**Redirect URI:** `{redirect_uri}`",
+        "data": {
+          "name": "Название",
+          "auth_code": "URL перенаправления или код"
+        }
+      },
+      "gemini_cli": {
+        "title": "Авторизация через Google AI Pro",
+        "description": "Войдите в аккаунт Google, чтобы авторизовать **Google AI Pro**, включающий **Gemini Code Assist** и **Gemini CLI**.\n\n1. [Нажмите здесь для авторизации]({auth_url})\n2. Войдите и дайте согласие\n3. Вас перенаправит на localhost-адрес, который может не открыться\n4. Скопируйте и вставьте полный URL перенаправления\n\n**Redirect URI:** `{redirect_uri}`",
+        "data": {
+          "name": "Название",
+          "google_project_id": "ID проекта Google Cloud (необязательно)",
+          "auth_code": "URL перенаправления"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки памяти",
+        "description": "Настройте поведение памяти на уровне сервиса — оно общее для всех голосовых агентов этой записи провайдера.\n\nПанель памяти:\n- Пункт бокового меню: `Память AI Assist`\n- Путь: `/ai-subscription-assist-memory`\n\nSlash-команды памяти (в чате Assist):\n- `/memory help`\n- `/memory status`\n- `/memory add [--shared] '<'text>` (алиас: `/remember`)\n- `/memory list [mine|shared|all] [--limit N]`\n- `/memory search '<'query> [--limit N]` (алиас: `/memories`)\n- `/memory delete '<'memory_id>` (алиас: `/forget`)\n- `/memory clear mine|shared|all --confirm`\n- `/memory sessions [mine|all] [--limit N]` (алиас: `/sessions`)\n- `/memory sessions show '<'session_id> [--limit N]`\n- `/memory sessions clear '<'session_id|mine|all> --confirm`\n- `/new` или `/reset` — очистить возобновляемый контекст и начать заново\n\nСервисы для управления памятью и сессиями:\n- `ai_subscription_assist.memory_status`\n- `ai_subscription_assist.memory_list`\n- `ai_subscription_assist.memory_delete`\n- `ai_subscription_assist.memory_clear`\n- `ai_subscription_assist.session_list`\n- `ai_subscription_assist.session_get`\n- `ai_subscription_assist.session_clear`\n\nДля вопросов по истории и таймлайну Home Assistant включите у агента инструменты:\n`get_history`, `get_logbook`, `get_statistics`",
+        "data": {
+          "claude_tool_obfuscation": "Псевдонимы имён инструментов (имитация Claude Code)",
+          "memory_enabled": "Включить память",
+          "memory_auto_write": "Автозапись явных просьб запомнить",
+          "memory_auto_recall": "Автоподстановка памяти в промпт",
+          "memory_resume_enabled": "Продолжать диалог после повторного открытия Assist",
+          "memory_ttl_days": "Срок хранения памяти (дней)",
+          "memory_max_items_per_scope": "Макс. записей на область",
+          "memory_recall_top_k": "Макс. подставляемых записей за ход",
+          "memory_resume_max_messages": "Макс. сообщений для продолжения"
+        },
+        "data_description": {
+          "claude_tool_obfuscation": "Переименовывать инструменты Home Assistant в обобщённые псевдонимы в стиле Claude Code при отправке (в ответах восстанавливаются). Скрывает клиент от распознавания по именам инструментов, но может ухудшить выбор инструментов. Заголовки, системные блоки и подпись тела применяются всегда.",
+          "memory_enabled": "Главный переключатель долговременной памяти и slash-команд памяти.",
+          "memory_auto_write": "Сохранять явные фразы вроде «запомни, что …» в личную память пользователя.",
+          "memory_auto_recall": "Добавлять релевантные фрагменты памяти в системный промпт при обычных репликах.",
+          "memory_resume_enabled": "Сохранять недавний контекст переписки, чтобы Assist мог продолжить после повторного открытия диалога.",
+          "memory_ttl_days": "Автоматически удалять записи старше указанного числа дней.",
+          "memory_max_items_per_scope": "Ограничить число записей для каждой области (общая и у каждого пользователя).",
+          "memory_recall_top_k": "Максимальное число записей памяти, подставляемых за один ход.",
+          "memory_resume_max_messages": "Максимальное число сообщений пользователя/ассистента, хранимых для продолжения диалога."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "abort": {
+        "entry_not_loaded": "Нельзя добавлять элементы, пока конфигурация отключена.",
+        "reconfigure_successful": "Настройки успешно обновлены."
+      },
+      "entry_type": "Голосовой агент",
+      "initiate_flow": {
+        "reconfigure": "Перенастроить голосового агента",
+        "user": "Добавить голосового агента"
+      },
+      "step": {
+        "advanced": {
+          "data": {
+            "chat_model": "Модель",
+            "max_tokens": "Максимум токенов в ответе",
+            "temperature": "Температура"
+          },
+          "title": "Расширенные настройки"
+        },
+        "init": {
+          "description": "Настройте модель этого агента и доступ к инструментам.\n\nДля анализа истории и таймлайна в чате включите `get_history`, `get_logbook` и `get_statistics` в разделе **Включённые дополнительные инструменты**.\nSlash-команды памяти настраиваются на уровне интеграции (Интеграция → Настроить).",
+          "data": {
+            "enabled_tools": "Включённые дополнительные инструменты",
+            "llm_hass_api": "Управление Home Assistant",
+            "name": "Название",
+            "prompt": "Инструкции",
+            "recommended": "Рекомендуемые настройки модели",
+            "yolo_mode": "Режим YOLO (небезопасно)"
+          },
+          "data_description": {
+            "enabled_tools": "Выберите, какие дополнительные инструменты AI Subscription Assist может вызывать этот агент.",
+            "prompt": "Опишите, как LLM должна отвечать. Можно использовать шаблон.",
+            "yolo_mode": "Отключает защиту по экспозиции сущностей и открывает привилегированные инструменты (правка дашбордов/автоматизаций, доступ к логам). Используйте только для доверенных агентов."
+          },
+          "title": "Основные настройки"
+        },
+        "model": {
+          "data": {
+            "thinking_budget": "Бюджет размышлений",
+            "thinking_effort": "Глубина размышлений",
+            "user_location": "Передавать местоположение дома",
+            "web_search": "Включить веб-поиск",
+            "web_search_max_uses": "Максимум веб-поисков"
+          },
+          "data_description": {
+            "thinking_budget": "Число токенов из общего лимита, которые модель может потратить на размышления над ответом. Укажите 1024 или больше, чтобы включить расширенное мышление.",
+            "thinking_effort": "Управляет тем, сколько токенов Claude тратит на ответ: компромисс между тщательностью и экономией токенов",
+            "user_location": "Локализовать результаты поиска по местоположению дома",
+            "web_search": "Инструмент веб-поиска даёт Claude прямой доступ к актуальному содержимому интернета, позволяя отвечать с учётом информации после даты отсечения знаний",
+            "web_search_max_uses": "Ограничить число поисков за один ответ"
+          },
+          "title": "Параметры модели"
+        }
+      }
+    }
+  },
+  "selector": {
+    "thinking_effort": {
+      "options": {
+        "high": "Высокая",
+        "low": "Низкая",
+        "max": "Максимальная",
+        "medium": "Средняя",
+        "none": "Нет"
+      }
+    }
+  },
+  "services": {
+    "memory_status": {
+      "name": "Статус памяти",
+      "description": "Вернуть настройки и счётчики памяти и сессий для одной записи AI Subscription Assist.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ID записи конфигурации",
+          "description": "Необязательно, если существует только одна запись провайдера AI Subscription Assist."
+        }
+      }
+    },
+    "memory_list": {
+      "name": "Список записей памяти",
+      "description": "Вернуть записи памяти (мои/общие/все) для выбранной записи провайдера.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ID записи конфигурации",
+          "description": "Необязательно, если существует только одна запись провайдера AI Subscription Assist."
+        },
+        "scope": {
+          "name": "Область",
+          "description": "mine, shared или all."
+        },
+        "limit": {
+          "name": "Лимит",
+          "description": "Максимальное число возвращаемых записей."
+        },
+        "target_user_id": {
+          "name": "ID целевого пользователя",
+          "description": "Только для администраторов: просмотреть память конкретного пользователя."
+        }
+      }
+    },
+    "memory_delete": {
+      "name": "Удалить запись памяти",
+      "description": "Удалить одну запись памяти по ID.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ID записи конфигурации",
+          "description": "Необязательно, если существует только одна запись провайдера AI Subscription Assist."
+        },
+        "memory_id": {
+          "name": "ID записи памяти",
+          "description": "ID из результата memory_list или команды /memory list."
+        }
+      }
+    },
+    "memory_clear": {
+      "name": "Очистить память",
+      "description": "Удалить записи памяти в указанной области. Требуется confirm=true.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ID записи конфигурации",
+          "description": "Необязательно, если существует только одна запись провайдера AI Subscription Assist."
+        },
+        "scope": {
+          "name": "Область",
+          "description": "mine, shared или all."
+        },
+        "target_user_id": {
+          "name": "ID целевого пользователя",
+          "description": "Только для администраторов: применить операцию mine/all к памяти другого пользователя."
+        },
+        "confirm": {
+          "name": "Подтверждение",
+          "description": "Должно быть true, чтобы выполнить необратимую очистку."
+        }
+      }
+    },
+    "session_list": {
+      "name": "Список сессий",
+      "description": "Вернуть возобновляемые сессии чата для этой записи провайдера.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ID записи конфигурации",
+          "description": "Необязательно, если существует только одна запись провайдера AI Subscription Assist."
+        },
+        "scope": {
+          "name": "Область",
+          "description": "mine или all (all требует прав администратора)."
+        },
+        "subentry_id": {
+          "name": "ID подзаписи агента",
+          "description": "Необязательный фильтр по одному голосовому агенту."
+        },
+        "target_user_id": {
+          "name": "ID целевого пользователя",
+          "description": "Только для администраторов: просмотреть сессии конкретного пользователя."
+        },
+        "limit": {
+          "name": "Лимит",
+          "description": "Максимальное число возвращаемых сессий."
+        }
+      }
+    },
+    "session_get": {
+      "name": "Получить сессию",
+      "description": "Вернуть сообщения одной возобновляемой сессии по её ID.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ID записи конфигурации",
+          "description": "Необязательно, если существует только одна запись провайдера AI Subscription Assist."
+        },
+        "session_id": {
+          "name": "ID сессии",
+          "description": "Значение из результата session_list."
+        },
+        "limit": {
+          "name": "Лимит сообщений",
+          "description": "Максимальное число сообщений с конца сессии."
+        }
+      }
+    },
+    "session_clear": {
+      "name": "Очистить сессии",
+      "description": "Очистить сессии по области, по агенту или по одному ID сессии. Требуется confirm=true.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ID записи конфигурации",
+          "description": "Необязательно, если существует только одна запись провайдера AI Subscription Assist."
+        },
+        "scope": {
+          "name": "Область",
+          "description": "mine или all. Игнорируется, если указан session_id."
+        },
+        "session_id": {
+          "name": "ID сессии",
+          "description": "Если указан, очищается ровно эта сессия."
+        },
+        "subentry_id": {
+          "name": "ID подзаписи агента",
+          "description": "Необязательный фильтр при очистке по области."
+        },
+        "target_user_id": {
+          "name": "ID целевого пользователя",
+          "description": "Только для администраторов: очистка по области для другого пользователя."
+        },
+        "confirm": {
+          "name": "Подтверждение",
+          "description": "Должно быть true, чтобы выполнить необратимую очистку."
+        }
+      }
+    }
+  }
+}

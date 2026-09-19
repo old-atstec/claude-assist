@@ -147,12 +147,14 @@ Capture:
 
 ### 6.5 Manage memory/session in integration panel
 Open sidebar item `AI Assist Memory` (path: `/ai-subscription-assist-memory`) and validate:
-- Entry selector works across provider entries
-- Memory filters (`scope`, search) and delete/clear actions
-- Session filters (`scope`, `subentry_id`) and session detail viewer
+- Entry selector works across provider entries (shown only when more than one entry exists)
+- Memory tab: filters (`scope`, user for admins, search) and delete/clear actions
+- Sessions tab: filters (`scope`, agent), session detail viewer, copy-id chips
+- Layout on a phone-sized viewport (no horizontal scrolling)
+- Panel strings follow the user profile language (English/Russian)
 
 Screenshot to capture:
-- Panel showing memory table + session table + session detail
+- Panel showing status overview + memory list + session detail
 
 ### 6.6 Manage memory/session in addon services
 Open `Developer Tools -> Actions` and use:

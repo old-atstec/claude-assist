@@ -242,8 +242,9 @@ Enable YOLO mode only for trusted agents.
 Memory is configured at the **service entry** level (Integration → Configure), not per agent.
 
 Integration panel (recommended for memory/session management):
-- Open sidebar item **AI Assist Memory** (path: `/ai-subscription-assist-memory`)
-- Features: entry selector, memory/session tables, session transcript viewer, clear/delete actions
+- Open sidebar item **AI Assist Memory** (path: `/ai-subscription-assist-memory`; titled **Память AI Assist** when the server language is Russian)
+- Features: entry selector, status overview, memory and session lists with search/filters, session transcript viewer, copyable ids, clear/delete actions
+- Responsive layout (works in the companion app on phones); UI language follows the user profile language (English and Russian)
 - Uses websocket API commands:
   - `ai_subscription_assist/entry_list`
   - `ai_subscription_assist/memory_status`

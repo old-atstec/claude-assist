@@ -65,7 +65,7 @@
     "step": {
       "init": {
         "title": "Memory settings",
-        "description": "Configure service-level memory behavior shared by all conversation agents in this provider entry.\n\nMemory panel:\n- Sidebar item: `AI Assist Memory`\n- Route: `/ai-subscription-assist-memory`\n\nMemory slash commands (use in Assist chat):\n- `/memory help`\n- `/memory status`\n- `/memory add [--shared] <text>` (alias: `/remember`)\n- `/memory list [mine|shared|all] [--limit N]`\n- `/memory search <query> [--limit N]` (alias: `/memories`)\n- `/memory delete <memory_id>` (alias: `/forget`)\n- `/memory clear mine|shared|all --confirm`\n- `/memory sessions [mine|all] [--limit N]` (alias: `/sessions`)\n- `/memory sessions show <session_id> [--limit N]`\n- `/memory sessions clear <session_id|mine|all> --confirm`\n- `/new` or `/reset` to clear resumable context and start fresh\n\nAddon services for memory/session management:\n- `ai_subscription_assist.memory_status`\n- `ai_subscription_assist.memory_list`\n- `ai_subscription_assist.memory_delete`\n- `ai_subscription_assist.memory_clear`\n- `ai_subscription_assist.session_list`\n- `ai_subscription_assist.session_get`\n- `ai_subscription_assist.session_clear`\n\nFor Home Assistant timeline/history questions, enable these agent tools:\n`get_history`, `get_logbook`, `get_statistics`",
+        "description": "Configure service-level memory behavior shared by all conversation agents in this provider entry.\n\nMemory panel:\n- Sidebar item: `AI Assist Memory`\n- Route: `/ai-subscription-assist-memory`\n\nMemory slash commands (use in Assist chat):\n- `/memory help`\n- `/memory status`\n- `/memory add [--shared] '<'text>` (alias: `/remember`)\n- `/memory list [mine|shared|all] [--limit N]`\n- `/memory search '<'query> [--limit N]` (alias: `/memories`)\n- `/memory delete '<'memory_id>` (alias: `/forget`)\n- `/memory clear mine|shared|all --confirm`\n- `/memory sessions [mine|all] [--limit N]` (alias: `/sessions`)\n- `/memory sessions show '<'session_id> [--limit N]`\n- `/memory sessions clear '<'session_id|mine|all> --confirm`\n- `/new` or `/reset` to clear resumable context and start fresh\n\nAddon services for memory/session management:\n- `ai_subscription_assist.memory_status`\n- `ai_subscription_assist.memory_list`\n- `ai_subscription_assist.memory_delete`\n- `ai_subscription_assist.memory_clear`\n- `ai_subscription_assist.session_list`\n- `ai_subscription_assist.session_get`\n- `ai_subscription_assist.session_clear`\n\nFor Home Assistant timeline/history questions, enable these agent tools:\n`get_history`, `get_logbook`, `get_statistics`",
         "data": {
           "claude_tool_obfuscation": "Alias tool names (Claude Code mimicry)",
           "memory_enabled": "Enable memory",
@@ -156,6 +156,150 @@
         "max": "Max",
         "medium": "Medium",
         "none": "None"
+      }
+    }
+  },
+  "services": {
+    "memory_status": {
+      "name": "Memory status",
+      "description": "Return memory and session settings/counters for one AI Subscription Assist config entry.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry id",
+          "description": "Optional when only one AI Subscription Assist provider entry exists."
+        }
+      }
+    },
+    "memory_list": {
+      "name": "List memories",
+      "description": "List memory items (mine/shared/all) for the selected provider entry.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry id",
+          "description": "Optional when only one AI Subscription Assist provider entry exists."
+        },
+        "scope": {
+          "name": "Scope",
+          "description": "mine, shared, or all."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum memory items to return."
+        },
+        "target_user_id": {
+          "name": "Target user id",
+          "description": "Admin-only override to inspect a specific user's memories."
+        }
+      }
+    },
+    "memory_delete": {
+      "name": "Delete memory",
+      "description": "Delete one memory item by id.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry id",
+          "description": "Optional when only one AI Subscription Assist provider entry exists."
+        },
+        "memory_id": {
+          "name": "Memory id",
+          "description": "ID from memory_list or /memory list output."
+        }
+      }
+    },
+    "memory_clear": {
+      "name": "Clear memories",
+      "description": "Clear memory items by scope. Requires confirm=true.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry id",
+          "description": "Optional when only one AI Subscription Assist provider entry exists."
+        },
+        "scope": {
+          "name": "Scope",
+          "description": "mine, shared, or all."
+        },
+        "target_user_id": {
+          "name": "Target user id",
+          "description": "Admin-only override for mine/all user memory operations."
+        },
+        "confirm": {
+          "name": "Confirm",
+          "description": "Must be true to perform a destructive clear operation."
+        }
+      }
+    },
+    "session_list": {
+      "name": "List sessions",
+      "description": "List resumable chat sessions for this provider entry.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry id",
+          "description": "Optional when only one AI Subscription Assist provider entry exists."
+        },
+        "scope": {
+          "name": "Scope",
+          "description": "mine or all (all requires admin)."
+        },
+        "subentry_id": {
+          "name": "Agent subentry id",
+          "description": "Optional filter to one conversation agent subentry."
+        },
+        "target_user_id": {
+          "name": "Target user id",
+          "description": "Admin-only override to inspect one user's sessions."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum sessions to return."
+        }
+      }
+    },
+    "session_get": {
+      "name": "Get session",
+      "description": "Return messages for one resumable session id.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry id",
+          "description": "Optional when only one AI Subscription Assist provider entry exists."
+        },
+        "session_id": {
+          "name": "Session id",
+          "description": "Value from session_list output."
+        },
+        "limit": {
+          "name": "Message limit",
+          "description": "Maximum messages to return from the end of the session."
+        }
+      }
+    },
+    "session_clear": {
+      "name": "Clear sessions",
+      "description": "Clear sessions by scope, by subentry, or by one session id. Requires confirm=true.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry id",
+          "description": "Optional when only one AI Subscription Assist provider entry exists."
+        },
+        "scope": {
+          "name": "Scope",
+          "description": "mine or all. Ignored when session_id is provided."
+        },
+        "session_id": {
+          "name": "Session id",
+          "description": "If set, clears exactly this session."
+        },
+        "subentry_id": {
+          "name": "Agent subentry id",
+          "description": "Optional filter when clearing by scope."
+        },
+        "target_user_id": {
+          "name": "Target user id",
+          "description": "Admin-only override when clearing by scope."
+        },
+        "confirm": {
+          "name": "Confirm",
+          "description": "Must be true to perform a destructive clear operation."
+        }
       }
     }
   }

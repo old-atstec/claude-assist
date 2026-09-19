@@ -110,6 +110,12 @@ DATA_MEMORY_PANEL_REGISTERED = "memory_panel_registered"
 PANEL_URL_PATH = "ai-subscription-assist-memory"
 PANEL_COMPONENT_NAME = "ai-subscription-assist-memory-panel"
 PANEL_SIDEBAR_TITLE = "AI Assist Memory"
+# Sidebar titles are not translated by the frontend for custom panels, so
+# pick one at registration time from the server language.
+PANEL_SIDEBAR_TITLES = {
+    "en": PANEL_SIDEBAR_TITLE,
+    "ru": "Память AI Assist",
+}
 PANEL_SIDEBAR_ICON = "mdi:brain"
 PANEL_STATIC_BASE_URL = f"/api/{DOMAIN}/panel"
 PANEL_MODULE_URL = f"{PANEL_STATIC_BASE_URL}/ai-subscription-assist-memory-panel.js"

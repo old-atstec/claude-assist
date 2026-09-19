@@ -17,9 +17,17 @@ from .const import (
     PANEL_MODULE_URL,
     PANEL_SIDEBAR_ICON,
     PANEL_SIDEBAR_TITLE,
+    PANEL_SIDEBAR_TITLES,
     PANEL_STATIC_BASE_URL,
     PANEL_URL_PATH,
 )
+
+
+def _sidebar_title(hass: HomeAssistant) -> str:
+    """Return the sidebar title matching the server language."""
+    language = str(getattr(hass.config, "language", "") or "").lower()
+    short = language.split("-")[0]
+    return PANEL_SIDEBAR_TITLES.get(short, PANEL_SIDEBAR_TITLE)
 
 
 async def async_setup_memory_panel(hass: HomeAssistant) -> None:
@@ -41,7 +49,7 @@ async def async_setup_memory_panel(hass: HomeAssistant) -> None:
         "frontend_url_path": PANEL_URL_PATH,
         "webcomponent_name": PANEL_COMPONENT_NAME,
         "module_url": PANEL_MODULE_URL,
-        "sidebar_title": PANEL_SIDEBAR_TITLE,
+        "sidebar_title": _sidebar_title(hass),
         "sidebar_icon": PANEL_SIDEBAR_ICON,
         "config": {"domain": DOMAIN},
         "require_admin": False,
