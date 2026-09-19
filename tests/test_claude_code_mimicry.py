@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import sys
 
 import httpx
 import pytest
@@ -20,6 +21,9 @@ MODULE_PATH = (
 SPEC = importlib.util.spec_from_file_location("ai_subscription_assist_claude_code_mimicry", MODULE_PATH)
 assert SPEC and SPEC.loader
 mimicry = importlib.util.module_from_spec(SPEC)
+# dataclasses (3.14+) resolve the class module via sys.modules while the
+# class body executes, so the module must be registered before exec.
+sys.modules[SPEC.name] = mimicry
 SPEC.loader.exec_module(mimicry)
 
 TODAY = date(2026, 9, 18)
@@ -504,7 +508,9 @@ async def test_transport_restores_tool_names_in_gzipped_stream() -> None:
     import gzip
 
     names = ["HassTurnOn", "HassTurnOff", "GetLiveContext", "get_history", "render_template", "modify_dashboard"]
-    tools = [{"name": n, "description": n, "input_schema": {"type": "object"}} for n in names]
+    # Descriptions are sent verbatim; keep the real names out of them so the
+    # "no leak" assertion below only sees the name fields.
+    tools = [{"name": n, "description": f"tool {i}", "input_schema": {"type": "object"}} for i, n in enumerate(names)]
     rewrite = mimicry.build_tool_name_rewrite(tools)
     assert rewrite is not None
     fake = rewrite.forward["HassTurnOn"]
