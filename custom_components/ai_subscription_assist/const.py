@@ -170,5 +170,8 @@ DEPRECATED_MODELS = [
     "claude-3-opus",
 ]
 
-# Token refresh interval (7 hours, tokens expire after 8)
-TOKEN_REFRESH_INTERVAL = 7 * 60 * 60
+# Claude OAuth access tokens live ~8 hours. The token is refreshed once it gets
+# within TOKEN_EXPIRY_BUFFER of ``expires_at``; a periodic check runs every
+# TOKEN_REFRESH_CHECK_INTERVAL and every chat turn checks as well.
+TOKEN_EXPIRY_BUFFER = 15 * 60
+TOKEN_REFRESH_CHECK_INTERVAL = 5 * 60

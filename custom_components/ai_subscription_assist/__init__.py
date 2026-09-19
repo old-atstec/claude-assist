@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 import datetime
 import json
@@ -47,7 +48,8 @@ from .const import (
     PROVIDER_OPENAI,
     PROVIDER_OPENAI_CODEX,
     PROVIDER_GOOGLE_GEMINI_CLI,
-    TOKEN_REFRESH_INTERVAL,
+    TOKEN_EXPIRY_BUFFER,
+    TOKEN_REFRESH_CHECK_INTERVAL,
 )
 from .memory_service import (
     async_remove_memory_service_for_entry,
@@ -194,6 +196,47 @@ async def _async_refresh_token(hass: HomeAssistant, entry: ConfigEntry) -> str |
         "Successfully refreshed OAuth token, expires in %s seconds", expires_in
     )
     return token_data["access_token"]
+
+
+def _claude_refresh_lock(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Lock:
+    """Return the per-entry lock that serialises Claude token refreshes.
+
+    Refresh tokens rotate, so two concurrent refreshes (periodic check racing a
+    chat turn) would burn the same refresh token twice.
+    """
+    locks: dict[str, asyncio.Lock] = hass.data.setdefault(DOMAIN, {}).setdefault(
+        "claude_refresh_locks", {}
+    )
+    return locks.setdefault(entry.entry_id, asyncio.Lock())
+
+
+def _claude_token_expiring(entry: ConfigEntry) -> bool:
+    """Return True when the stored Claude access token is expired or about to be."""
+    expires_at = float(entry.data.get(CONF_EXPIRES_AT, 0) or 0)
+    return time.time() > (expires_at - TOKEN_EXPIRY_BUFFER)
+
+
+async def async_ensure_claude_access_token(
+    hass: HomeAssistant, entry: ConfigEntry, *, force: bool = False
+) -> bool:
+    """Make sure the Claude OAuth client carries a usable access token.
+
+    Refreshes when the token is within TOKEN_EXPIRY_BUFFER of expiry (or always
+    when ``force`` is set, e.g. after a 401) and swaps the bearer on the live
+    client so its Claude Code session id is kept. Returns False if a refresh was
+    needed and failed.
+    """
+    async with _claude_refresh_lock(hass, entry):
+        if not force and not _claude_token_expiring(entry):
+            return True
+        new_token = await _async_refresh_token(hass, entry)
+        if not new_token:
+            return False
+        # runtime_data is unset while async_setup_entry is still refreshing.
+        client = getattr(entry, "runtime_data", None)
+        if isinstance(client, anthropic.AsyncClient):
+            client.auth_token = new_token
+        return True
 
 
 def extract_claude_account_uuid(token_data: dict[str, object]) -> str | None:
@@ -493,10 +536,8 @@ async def async_setup_entry(
         entry.runtime_data = client
     else:
         access_token = entry.data.get(CONF_ACCESS_TOKEN)
-        expires_at = entry.data.get(CONF_EXPIRES_AT, 0)
 
-        # Refresh token if expired or close to expiry (within 10 minutes)
-        if time.time() > (expires_at - 600):
+        if _claude_token_expiring(entry):
             LOGGER.debug("Access token expired or near expiry, refreshing...")
             access_token = await _async_refresh_token(hass, entry)
             if not access_token:
@@ -555,19 +596,18 @@ async def async_setup_entry(
             )
 
     if provider == PROVIDER_CLAUDE_OAUTH:
-        # Set up periodic token refresh (Claude subscription OAuth only).
+        # Refresh shortly before expiry (Claude subscription OAuth only). A fixed
+        # timer is not enough: after a restart the token may expire long before
+        # the timer fires, and every chat turn in between would 401.
         async def _periodic_refresh(_now: datetime.datetime) -> None:
-            """Periodically refresh the OAuth token."""
-            new_token = await _async_refresh_token(hass, entry)
-            if new_token:
-                # Keep the client (and its Claude Code session id): only the bearer changes.
-                entry.runtime_data.auth_token = new_token
+            """Refresh the OAuth token once it is close to expiry."""
+            await async_ensure_claude_access_token(hass, entry)
 
         entry.async_on_unload(
             async_track_time_interval(
                 hass,
                 _periodic_refresh,
-                datetime.timedelta(seconds=TOKEN_REFRESH_INTERVAL),
+                datetime.timedelta(seconds=TOKEN_REFRESH_CHECK_INTERVAL),
             )
         )
     elif provider == PROVIDER_OPENAI_CODEX:
@@ -645,6 +685,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload AI Subscription Assist."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     async_remove_memory_service_for_entry(hass, entry.entry_id)
+    hass.data.get(DOMAIN, {}).get("claude_refresh_locks", {}).pop(entry.entry_id, None)
     return unloaded
 
 

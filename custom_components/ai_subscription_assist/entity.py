@@ -86,7 +86,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.json import json_dumps
 from homeassistant.util import slugify
 
-from . import AiSubscriptionAssistConfigEntry
+from . import AiSubscriptionAssistConfigEntry, async_ensure_claude_access_token
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CHAT_MODEL,
@@ -1664,10 +1664,30 @@ class AiSubscriptionAssistBaseLLMEntity(Entity):
 
         client = self.entry.runtime_data
 
+        # Refresh the OAuth bearer if it is about to expire, so the turn does
+        # not run into a 401 mid-conversation.
+        await async_ensure_claude_access_token(self.hass, self.entry)
+        auth_retried = False
+
+        async def _create_stream() -> AsyncStream[MessageStreamEvent]:
+            nonlocal auth_retried
+            try:
+                return await client.messages.create(**model_args)
+            except anthropic.AuthenticationError:
+                # The token can still be rejected (clock skew, revoked early):
+                # refresh once and retry the same request.
+                if auth_retried or not await async_ensure_claude_access_token(
+                    self.hass, self.entry, force=True
+                ):
+                    raise
+                auth_retried = True
+                LOGGER.debug("Anthropic rejected the OAuth token; refreshed and retrying")
+                return await client.messages.create(**model_args)
+
         # To prevent infinite loops, we limit the number of iterations
         for _iteration in range(MAX_TOOL_ITERATIONS):
             try:
-                stream = await client.messages.create(**model_args)
+                stream = await _create_stream()
 
                 messages.extend(
                     _convert_content(
@@ -1707,6 +1727,12 @@ class AiSubscriptionAssistBaseLLMEntity(Entity):
                         or headers.get("anthropic-ratelimit-unified-reset"),
                         detail=_describe_unified_rate_limit(headers) or err.message,
                     )
+                ) from err
+            except anthropic.AuthenticationError as err:
+                LOGGER.error("Anthropic OAuth token rejected and refresh failed: %s", err)
+                raise HomeAssistantError(
+                    "Sorry, my Anthropic login has expired and could not be "
+                    "refreshed. Please re-add the Claude integration."
                 ) from err
             except anthropic.AnthropicError as err:
                 raise HomeAssistantError(
