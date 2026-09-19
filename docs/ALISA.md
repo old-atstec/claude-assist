@@ -2,7 +2,9 @@
 
 Свободный текст с Алисы попадает в агента Claude, ответ озвучивается на колонке,
 с которой спросили. Пример живой конфигурации: [examples/alisa_claude.yaml](examples/alisa_claude.yaml)
-(кладётся в `/config/packages/`).
+(пакет, кладётся в `/config/packages/`) и
+[examples/alisa_claude_automation.yaml](examples/alisa_claude_automation.yaml)
+(автоматизация для `automations.yaml`).
 
 ## Схема
 
@@ -31,7 +33,9 @@ Claude с инструментами отвечает 2–15 с.
 
 ## Настройка
 
-1. Скопировать `examples/alisa_claude.yaml` в `/config/packages/`, поправить:
+1. Скопировать `examples/alisa_claude.yaml` в `/config/packages/`, а содержимое
+   `examples/alisa_claude_automation.yaml` дописать в `/config/automations.yaml`
+   (так автоматизацию можно править из UI). Поправить:
    - `agents:` — свои `conversation.*` entity_id;
    - `default_speaker:` и `speakers:` — `application_id` → колонка (id видны в логе HA
      по строкам `alisa: application_id=…` после первого обращения с каждой колонки).

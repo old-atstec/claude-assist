@@ -1,0 +1,73 @@
+- id: alisa_claude_request
+  alias: "Алиса → Claude → колонка"
+  description: >-
+    Фраза из навыка Яндекс.Диалогов отправляется агенту Claude,
+    ответ озвучивается на колонке, с которой спросили.
+  mode: queued
+  max: 5
+  triggers:
+    - trigger: event
+      event_type: alisa_claude_request
+  variables:
+    # Имя в input_select → conversation-агент
+    agents:
+      "Claude Sonnet 5": conversation.claude_conversation_2
+      "Claude Haiku 4.5": conversation.claude_conversation
+    agent_id: >-
+      {{ agents.get(states('input_select.alisa_claude_agent'), 'conversation.claude_conversation_2') }}
+    # application_id навыка → колонка. application_id виден в логе HA
+    # (system_log, «alisa: application_id=…») после первого обращения с каждой колонки.
+    speakers:
+      # Яндекс Мини
+      "040E24066EB98B83C9B96B5FD3B970A1662D9F0B215E8279D5199A51744339D8": media_player.yandex_station_ff98f029c1fe1ab9856023b1
+      # Яндекс Станция Макс
+      "7E862B8ACA15D8AB832F9B63033802FE648114473BC5515CD92093A7EF1AEFF3": media_player.yandex_station_xw0000000000000011600002d22c5a80
+    default_speaker: media_player.yandex_station_xw0000000000000011600002d22c5a80
+    # Колонка, которая сейчас не в IDLE — с неё, скорее всего, и спросили
+    active_speaker: >-
+      {{ states.media_player
+         | selectattr('attributes.alice_state', 'defined')
+         | rejectattr('attributes.alice_state', 'eq', 'IDLE')
+         | map(attribute='entity_id') | list | first | default('') }}
+    speaker: >-
+      {{ speakers.get(trigger.event.data.application_id) or active_speaker or default_speaker }}
+    # Подсказка агенту: ответ пойдёт в голос, markdown и простыни не нужны
+    prompt_prefix: >-
+      Ответ будет озвучен голосовым ассистентом: отвечай кратко, обычным текстом без markdown.
+  actions:
+    - action: system_log.write
+      data:
+        level: info
+        logger: alisa_claude
+        message: >-
+          alisa: application_id={{ trigger.event.data.application_id }}
+          speaker={{ speaker }} agent={{ agent_id }} text={{ trigger.event.data.text }}
+    - action: conversation.process
+      continue_on_error: true
+      data:
+        agent_id: "{{ agent_id }}"
+        conversation_id: "alisa-{{ trigger.event.data.application_id or 'default' }}"
+        text: "{{ prompt_prefix }} {{ trigger.event.data.text }}"
+      response_variable: result
+    - variables:
+        answer: >-
+          {% set speech = (result.response.speech.plain.speech
+                           if result is defined and result.response is defined else '') %}
+          {% if speech %}
+            {{ speech | regex_replace('[*_`#]', '') | truncate(900, true, '…') }}
+          {% else %}
+            Не получилось получить ответ от Клода
+          {% endif %}
+    - action: system_log.write
+      data:
+        level: info
+        logger: alisa_claude
+        message: "alisa: speaker={{ speaker }} answer={{ answer }}"
+    - action: media_player.play_media
+      target:
+        entity_id: "{{ speaker }}"
+      data:
+        media_content_type: text
+        media_content_id: >-
+          {% set voice = states('input_text.alisa_claude_voice') | trim %}
+          {% if voice and voice not in ('unknown', 'unavailable') %}<speaker voice="{{ voice }}">{% endif %}{{ answer }}
